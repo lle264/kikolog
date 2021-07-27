@@ -1,14 +1,14 @@
 <template>
 <div id="app" v-touch:swipe="swipeHandler">
-	<b-navbar type="light" variant="dark" shadow>
-		<b-button aria-controls="sidebar" @click="sidebarShown=!sidebarShown" class="ml-0 mr-1" style="background: transparent; border: none;"><b-icon icon="justify"/></b-button>
-		<b-navbar-brand tag="h1" class="mb-0 text-light">Hasakiko's Logbook</b-navbar-brand>
+	<b-navbar type="light" variant="primary" shadow>
+		<b-button aria-controls="scenebar" @click="scenebarShown=!scenebarShown" class="mb-0 ml-0 mr-1" style="background: transparent; border: none;"><b-icon icon="justify"/></b-button>
+		<b-navbar-brand tag="b" class="mb-0 text-light">Hasakiko's Logbook</b-navbar-brand>
 		<b-navbar-nav class="ml-auto">
-			<b-button @click="$bvModal.show('settingsModal')" right  style="background: transparent; border: none"><b-icon icon="gear"/></b-button>
+			<b-button @click="settingsbarShown=!settingsbarShown" right  style="background: transparent; border: none"><b-icon icon="gear"/></b-button>
 		</b-navbar-nav>
 	</b-navbar>
 	
-	<b-sidebar id="sidebar" title="Sidebar" v-model="sidebarShown" :aria-expanded="!sidebarShown" shadow backdrop>
+	<b-sidebar id="scenebar" title="Scenes" v-model="scenebarShown" :aria-expanded="!scenebarShown" shadow backdrop>
 		<template #header>
 			<div class="ml-auto mr-auto align-items-center">
 			<b-button class="mt-5" :variant="scene==0?'light':''" @click="setScene(0)">Show All ({{messages.size}})</b-button>	
@@ -20,18 +20,23 @@
 				</b-button-group>
 			</div>
 		</template>				
-		<b-button-group size="sm" class="mt-2 mb-2" vertical>
-			<b-button style="text-align: left;" 	v-for="s in (scenes.filter(x => x.count > 0))" 
-				:variant="scene==s._id?'light':''" 
+		<b-button-group size="sm" class="mt-2 mb-2 mr-4 ml-0" vertical>
+			<b-button style="text-align: left; width:100%" 	v-for="s in (scenes.filter(x => x.count > 0))" 
+				:variant="scene==s._id?'':'light'" 
 			:key="'SceneSelect/'+s._id" @click="setScene(s._id)"># 
 			{{s.name}} ({{s.count}})
 			</b-button>					
 		</b-button-group>
+	</b-sidebar>
+
+	<b-sidebar id="settingsbar" title="Settings" v-model="settingsbarShown" :aria-expanded="!settingsbarShown" shadow right backdrop>
+		<SettingsPanel :fontSize="settings.fontS" @fontSizeChange="v => settings.fontS=v" :edit="settings.enableEdit" @editChange="v => settings.enableEdit=v"/>
+
 		<template #footer>
 			<div class=" align-items-center">
 				<b-button class="mb-2 mt-2" @click="$bvModal.show('createModal')">Create New Log</b-button>
 			</div>
-			</template>
+		</template>
 	</b-sidebar>
 
 	<div v-if="scene!=-1" class="message-container" :style="{'font-size':fontSize}" @scroll="updateScroll">
@@ -52,52 +57,52 @@
 			@actorImageGet="handleActorImageGet" @nameChange="v=>settings.name=v"
 			/>
 	</b-modal>
-	<b-modal size="lg" title="Settings" id="settingsModal">
-		<SettingsPanel :fontSize="settings.fontS" @fontSizeChange="v => settings.fontS=v" :edit="settings.enableEdit"/>
-	</b-modal>
-
-	<b-modal size="xl" id="editModal" title="Edit Message">
+	<b-modal size="xl" id="editModal" title="Edit Message" hide-header-close>
 		<div v-if="selectedMessage!=null">
-
-		<b-form style="display: flex; flex-wrap: wrap; justify-content:space-between;">
-			<b-form-group label="Alias" label-for="alias-input" style="width: 10em;">
-				<b-form-input id="alias-input" v-if="selectedMessage.speaker!=null" type="text" v-model="selectedMessage.speaker.alias"/>
-			</b-form-group>
-			<b-form-group label="Type" label-for="type-select">
-				<b-form-select id="type-select" select type="number" :options="chatTypes" v-model="selectedMessage.type"/>
-			</b-form-group>
-			<b-form-group label="User" label-for="er-select">
-				<b-form-select id="user-select" select :options="users.map(x=> ({value:x._id,text:x.name}))" v-model="selectedMessage.user"/>
-			</b-form-group>
-			<b-form-group label="Actor" label-for="actor-select">
-				<b-form-select id="actor-select" select :options="actors.map(x=> ({value:x._id,text:x.name})).concat({value:null,text:'None'})" v-model="selectedMessage.speaker.actor"/>
-			</b-form-group>
-		<b-form-textarea
-			class="mt-2"
-			id="textarea"
-			v-model="selectedMessage.content"
-			@change="++refreshMessages"
-			placeholder=""
-			rows="3"
-		></b-form-textarea>
-	</b-form>
-	<hr>
-	<AppMessage :prev="null" :message="selectedMessage" :users="users" :actors="actors" :scenes="scenes" :showScene="true"  :edit="false"/>
-	</div>
-	<template #modal-footer>
-	<b-row>
-		<b-col>
-			<b-button variant="danger" size="sm" class="float-right" @click="deleteMessage()" >
-				Delete?
-			</b-button>
-		</b-col>
-		<b-col>
-			<b-button variant="primary" size="sm" class="float-right" @click="$bvModal.hide('editModal')" >
-			Close
-			</b-button>
-		</b-col>
-	</b-row>
-	</template>
+			<b-form style="display: flex; flex-wrap: wrap; justify-content:space-between;">
+				<b-form-group label="Alias" label-for="alias-input" style="width: 10em;">
+					<b-form-input id="alias-input" v-if="selectedMessage.speaker!=null" type="text" v-model="selectedMessage.speaker.alias" 
+				/>
+				</b-form-group>
+				<b-form-group label="Type" label-for="type-select">
+					<b-form-select id="type-select" select type="number" :options="chatTypes" v-model="selectedMessage.type" 
+				/>
+				</b-form-group>
+				<b-form-group label="User" label-for="er-select">
+					<b-form-select id="user-select" select :options="users.map(x=> ({value:x._id,text:x.name}))" v-model="selectedMessage.user" 
+				/>
+				</b-form-group>
+				<b-form-group label="Actor" label-for="actor-select">
+					<b-form-select id="actor-select" select :options="actors.map(x=> ({value:x._id,text:x.name})).concat({value:null,text:'None'})" v-model="selectedMessage.speaker.actor" 
+				/>
+				</b-form-group>
+				<b-form-group label="Scene" label-for="scene-select">
+					<b-form-select id="scene-select" select :options="scenes.map(x=> ({value:x._id,text:x.name})).concat({value:null,text:'None'})" v-model="selectedMessage.speaker.scene" 
+				/>
+				</b-form-group>
+			<b-form-textarea
+				class="mt-2"
+				id="textarea"
+				v-model="selectedMessage.content"
+				
+				placeholder=""
+				rows="3"
+			></b-form-textarea>
+		</b-form>
+		<hr>
+		<AppMessage :prev="null" :message="selectedMessage" :users="users" :actors="actors" :scenes="scenes" :showScene="true"  :edit="false"/>
+		</div>
+		<template #modal-footer>
+				<b-button variant="danger" size="sm" class="mr-auto" @click="deleteMessage()" >
+					Delete?
+				</b-button>
+				<b-button variant="success" size="sm" class="float-right" @click="updateMessage();$bvModal.hide('editModal')" >
+				Save
+				</b-button>
+				<b-button variant="primary" size="sm" class="float-right" @click="$bvModal.hide('editModal');selectedMessage=null" >
+				Close
+				</b-button>
+		</template>
 	</b-modal>
 </div>
 </template>
@@ -143,7 +148,8 @@ export default {
 		max:25,
 		tab:0,
 		refreshMessages:0,
-		sidebarShown:false
+		scenebarShown:false,
+		settingsbarShown:false
 	}
 	},computed:{
 	chatSelect:function(){ 
@@ -169,7 +175,6 @@ export default {
 		let sectioned= [[],[],[]]
 		let aux=this.refreshMessages;
 		var i=aux++;
-		
 		if(this.settings.splitScenes){
 			sectioned.push([]);
 		for (i=0; i<this.scenes.length; i++) {
@@ -274,15 +279,30 @@ export default {
 		}
 		this.scenes=ret;
 	},setMessageToEdit: function(message){
-		this.selectedMessage=message
+		this.selectedMessage=JSON.parse(JSON.stringify(message));
+		this.selectedMessage.timestamp=new Date(this.selectedMessage.timestamp);
 		this.$bvModal.show('editModal')  
+	},
+	updateMessage:function(){	
+		this.messages= new Set( [...this.messages].map(m=>{
+			if(m._id==this.selectedMessage._id){
+				if(m.speaker.scene!=this.selectedMessage.speaker?.scene){
+					var from = this.getScene(m.speaker?.scene);
+					var to = this.getScene(this.selectedMessage.speaker?.scene);
+					(from.count-=1);
+					(to.count+=1);
+				}
+			return this.selectedMessage;
+			}else{
+				return m;
+			}
+		}))
 	},deleteMessage:function(){
 		this.$bvModal.hide('editModal')
 		if(this.selectedMessage.speaker?.scene!=null) {
 			this.getScene(this.selectedMessage.speaker.scene).count--;
 		}
-		this.messages.delete(this.selectedMessage)
-		++this.refreshMessages // dirty hack due to set.delete not being reactive
+		this.messages= new Set( [...this.messages].filter(m=>m._id!=this.selectedMessage._id))
 	}, handleActorImageGet(url){
 		console.log("HandleActorImageGet:",url)
 		for(var i=0;i<this.actors.length;i++) {
@@ -306,9 +326,11 @@ export default {
 	}, swipeHandler(event){
 		console.log(event)
 		if(event=="left"){
-			this.sidebarShown=false;
+			if(this.scenebarShown)	this.scenebarShown=false;
+			else this.settingsbarShown=true;
 		}else if(event=="right"){
-			this.sidebarShown=true
+			if(this.settingsbarShown)	this.settingsbarShown=false;
+			else this.scenebarShown=true;
 		}
 	}
 

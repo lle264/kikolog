@@ -22,7 +22,7 @@
 		<div class="content">
 			<div v-sanitize="content"/> 
 			<span v-if="isFollowup || isNarration || isEmote" class="shortTime">{{time.time}}</span>
-			<b-button pill class="edit" @click="$emit('openMessage',message)"> <b-icon icon="pencil"></b-icon></b-button>
+			<b-button v-if="edit" pill class="edit" @click="$emit('openMessage',message)"> <b-icon icon="pencil"></b-icon></b-button>
 		</div>
 		<footer v-if="message.type==5"> <hr><b>{{roll.formula}}:</b> {{roll.total}}</footer>
 	</div>
@@ -42,7 +42,8 @@ export default{
 		showScene:Boolean,
 		actors:Array,
 		scenes:Array,
-		users:Array
+		users:Array,
+		edit:Boolean
 	},components:{Avatar},
 	computed:{
 		content:function(){return (this.flavor + this.message.content).replace(/\u00A0/g,' ')},
