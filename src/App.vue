@@ -252,7 +252,7 @@ export default {
 			}			
 		++i
 		}
-		this.messages=new Set(ret);
+		this.messages=new Set(ret.sort((a,b)=>a.timestamp-b.timestamp));
 	},
 	handleUsers(file){
 		this.users=file.map(u=>{
