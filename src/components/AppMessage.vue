@@ -1,5 +1,5 @@
 <template>
-	<div :class="{narration:isNarration, ooc:isOOC, message:true, emote:isEmote, followup:isFollowup}"
+	<div :class="{narration:isNarration, ooc:isOOC, message:true, emote:isEmote, first:isFirst, followup:isFollowup,last:isLast}"
 	:title="(isFollowup && language)?language:''"
 	@click="log" @mouseover="hovered=true" @mouseout="hovered=false">
 		<div class="whisper" v-if="message.whisper.length>0">
@@ -39,6 +39,7 @@ export default{
 	props:{
 		message:Object,
 		prev:Object,
+		next:Object,
 		showScene:Boolean,
 		actors:Array,
 		scenes:Array,
@@ -59,7 +60,14 @@ export default{
 				&& (this.prev.type == 2)  
 				&& (this.prev.speaker.alias == this.message.speaker.alias)  
 				
+		},isLast: function(){
+			if (this.next==null) return true;
+			return !(this.isEmote||this.isNarration) && !((this.next.user._id == this.message.user._id) 
+				&& (this.next.type == 2)
+				&& (this.next.speaker.alias == this.message.speaker.alias))
+				
 		},
+		isFirst: function(){return !(this.isFollowup || this.isEmote)},
 		isOOC: function(){
 			return ((this.message.type==1) || (this.message.speaker?.alias== null))
 		},
@@ -128,6 +136,13 @@ export default{
 		padding:4px 1em;
 		position: relative;
 	}
+	/*
+	.first{ 
+		margin-top: 1em;
+	}
+	.last{
+		margin-bottom: 1em;
+	}*/
 	.avatar{
 		position: absolute;
 		left: 4px;

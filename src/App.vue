@@ -4,7 +4,8 @@
 		<b-button aria-controls="scenebar" @click="scenebarShown=!scenebarShown" class="mb-0 ml-0 mr-1" style="background: transparent; border: none;"><b-icon icon="justify"/></b-button>
 		<b-navbar-brand tag="b" class="mb-0 text-light">Hasakiko's Logbook</b-navbar-brand>
 		<b-navbar-nav class="ml-auto">
-			<b-button @click="settingsbarShown=!settingsbarShown" right  style="background: transparent; border: none"><b-icon icon="gear"/></b-button>
+			<b-button @click="$bvModal.show('helpModal')" right title="Help"  style="background: transparent; border: none"><b-icon icon="question-circle-fill"/></b-button>
+			<b-button @click="settingsbarShown=!settingsbarShown" right title="Settings"  style="background: transparent; border: none"><b-icon icon="gear-fill"/></b-button>
 		</b-navbar-nav>
 	</b-navbar>
 	
@@ -34,28 +35,30 @@
 
 		<template #footer>
 			<div class=" align-items-center">
-				<b-button class="mb-2 mt-2" @click="$bvModal.show('createModal')">Create New Log</b-button>
+				<b-button class="mb-2 mt-2" @click="$bvModal.show('createModal')">Edit Log</b-button>
 			</div>
 		</template>
 	</b-sidebar>
 
 	<div v-if="scene!=-1" class="message-container" :style="{'font-size':fontSize}" @scroll="updateScroll">
 		<AppMessage  v-for="(message, index) in chatSelect.slice(0,max)" 
-			:prev="(index)? chatSelect[index-1]:null" :message="message" 
-			:users="users" :actors="actors" :scenes="scenes"
-			:showScene="!settings.splitScenes"  :edit="settings.enableEdit" @openMessage="setMessageToEdit" 
-			:key="message._id"
-		/>
+			:prev="(index)? chatSelect[index-1]:null" :next="(index-max-1)? chatSelect[index+1]:null"
+			:message="message" :users="users" :actors="actors" :scenes="scenes"
+			:showScene="!settings.splitScenes"  :edit="settings.enableEdit" 
+			@openMessage="setMessageToEdit" :key="message._id"/>
 	</div>
 	<LoadPanel v-else @archiveRead="handleArchive" />
 
 		
-	<b-modal size="xl" title="Log Setup" id="createModal">
+	<b-modal size="xl" title="Log Editing" id="createModal">
 		<CreatePanel 
 			:users="users" :actors="actors" :scenes="scenes" :settings="settings" :messages="messages"
 			@chat-read="handleChat" @users-read="handleUsers" @actors-read="handleActors" @scenes-read="handleScenes"
-			@actorImageGet="handleActorImageGet" @nameChange="v=>settings.name=v"
+			@actorImageGet="handleActorImageGet" @nameChange="v=>settings.name=v" @filterMessages="applyFilter"
 			/>
+	</b-modal>
+	<b-modal size="xl" title="Help" id="helpModal">
+		<HelpPanel/>
 	</b-modal>
 	<b-modal size="xl" id="editModal" title="Edit Message" hide-header-close>
 		<div v-if="selectedMessage!=null">
@@ -111,17 +114,36 @@
 import SettingsPanel from './components/SettingsPanel.vue'
 import LoadPanel from './components/LoadPanel.vue'
 import CreatePanel from './components/CreatePanel.vue'
+import HelpPanel from './components/HelpPanel.vue'
 import AppMessage from './components/AppMessage.vue'
 export default {
 	name: 'App',
 	components: {
 	SettingsPanel,
 	CreatePanel,
+	HelpPanel,
 	LoadPanel,
 	AppMessage
 	},watch:{
-	title:function(s){
+	title(s){
 		document.title=s 
+	},
+	messages(){
+		console.log("re-sorting Scenes")
+		this.scenes.forEach(s=>s.count=0);
+		for (var m of this.messages){
+			if(this.scenes.length){
+				var s = this.getScene(m.speaker.scene);
+				if(s!=undefined){
+					s.count++;
+					if(m.timestamp<s.earliest) s.earliest=m.timestamp
+				}
+			}
+			if(this.scene==-1){
+				if(m.speaker.scene!=null) this.scene=m.speaker.scene;
+			}
+		}
+		this.scenes=this.scenes.sort((a,b)=>a.earliest-b.earliest)
 	}
 	},data:()=>{
 	return{
@@ -152,14 +174,14 @@ export default {
 		settingsbarShown:false
 	}
 	},computed:{
-	chatSelect:function(){ 
+	chatSelect(){ 
 		if(this.settings.splitScenes && this.tab<2){
 			return this.messagesByType[this.tab][this.scene]
 		}else{
 			return this.messagesByType[this.tab]	
 		} 
 	},
-	title: function(){
+	title(){
 		var n="Hasakiko's Logbook"
 		var t ="";
 		if(this.settings.name.length){
@@ -170,8 +192,8 @@ export default {
 		}
 		return t+" / "+n;
 	},
-	fontSize:function(){ return this.settings.fontS+"px"},
-	messagesByType: function(){
+	fontSize(){ return this.settings.fontS+"px"},
+	messagesByType(){
 		let sectioned= [[],[],[]]
 		let aux=this.refreshMessages;
 		var i=aux++;
@@ -186,7 +208,7 @@ export default {
 			++i; 
 			var t;
 			switch(m.type){
-				case 0:t = 0; break;  // System Message
+				case 0:t = 0; break;  // Other Message
 				case 1:t = 2; break;  // OOC Message
 				case 2:t = 0; break;  // IC Message
 				case 3:t = 0; break;  // Emote Message
@@ -204,45 +226,35 @@ export default {
 	}
 	}
 	,methods:{
-	getScene:function(m){return this.scenes.find(s=>s._id==m)},
-	setScene:function(s){
+	getScene(m){return this.scenes.find(s=>s._id==m)},
+	setScene(s){
 		this.settings.splitScenes=(s!=0)
 		this.scene=s;this.max=25
 	},
-	handleChat: function (file){
-		console.log("Decoded chat. Correcting...");
-		for (var i=0; i<file.length; i++) {     
-		file[i].timestamp=new Date(file[i].timestamp)
-			if(!this.users.some(u=>(file[i].user)==u._id)){   //Create Placeholder Users
-				this.users.push({name:`User ${this.users.length+1}`, _id:file[i].user,color:"#000000"})
-			}
-			if(file[i].speaker?.scene!=null &&  !this.scenes.some(s=>(file[i].speaker.scene)==s._id)){ 
-				this.scenes.push({name:`Scene ${this.scenes.length+1}`,
-				_id:file[i].speaker.scene,
-				count:1,
-				earliest:Date.now()});
-			}
-				if(this.scenes.length){
-				var s = this.getScene(file[i].speaker.scene);
-					if(s!=undefined){
-						s.count++;
-						if(file[i].timestamp<s.earliest) s.earliest=file[i].timestamp
-					}
+	handleChat(file){
+		var ret=[...this.messages];
+		var i=0;var len=file.length;
+		while(i<len){     
+			if(!ret.some(m=>m._id==file[i]._id)) {
+				var m = file[i];
+				m.timestamp=new Date(m.timestamp);
+				if(!this.users.some(u=>(m.user)==u._id)){   //Create Placeholder Users
+					this.users.push({name:`User ${this.users.length+1}`, _id:m.user,color:"#000000"})
 				}
-		}
-		console.log("Corrected chat. Setting...");
-		file.push(...this.messages)
-		var ret= file.sort((a,b) => a.timestamp-b.timestamp) //join with pre-existing array.
-		ret=ret.filter(function(item, index) {        //filter duplicates
-			return !index || item._id!=ret[index-1]._id;
-		})
-
-		for (i=0; i<ret.length && this.scene ==-1; i++) {
-			if(ret[i].speaker.scene!=null) this.scene=ret[i].speaker.scene;
+				if(m.speaker?.scene!=null &&  !this.scenes.some(s=>(m.speaker.scene)==s._id)){ 
+					this.scenes.push({name:`Scene ${this.scenes.length+1}`,
+					_id:m.speaker.scene,
+					count:1,
+					earliest:new Date(Date.now())});
+				}
+				
+				ret.push(m);
+			}			
+		++i
 		}
 		this.messages=new Set(ret);
 	},
-	handleUsers: function (file){
+	handleUsers(file){
 		this.users=file.map(u=>{
 			delete u.password;
 			delete u.passwordSalt;
@@ -251,53 +263,48 @@ export default {
 			return u
 		});
 	},
-	handleActors: function (file){
-		this.actors=file.map(a=>{
+	handleActors(file){
+		var aux=file.map(a=>{
 			delete a.token;
 			delete a.data;
 			delete a.items;
 			return a;
 		})
+		var ret=[]; var i=0;var len=aux.length;
+		while(i<len){
+			if(!ret.some(a=>a._id==aux[i]._id)) ret.push(aux[i]);
+			++i;
+		}
+		this.actors=ret.sort((a,b)=>a.name.localeCompare(b.name));
+		
 	},
-	handleScenes: function (file){
-		var ret = file.map(s=>{
+	handleScenes(file){
+		var aux = file.map(s=>{
 			delete s.tokens;
 			s["count"]=0;
-			s["earliest"]=Date.now();
+			s["earliest"]=new Date(Date.now());
 			return s
-
 		})
-		var i=0; var len=this.messages.length;
+		var ret=[]; var i=0;var len=aux.length;
 		while(i<len){
-			var m = this.messages[i]
-			if(m.speaker?.scene!=null) {
-				var s=ret.find(s=>s._id==m.speaker.scene);
-				if(s!=undefined){
-					if(s.count==null) s["count"]=1; else s.count++;
-				}
-			}
+			if(!ret.some(a=>a._id==aux[i]._id)) ret.push(aux[i]);
+			++i;
 		}
 		this.scenes=ret;
-	},setMessageToEdit: function(message){
+	},setMessageToEdit(message){
 		this.selectedMessage=JSON.parse(JSON.stringify(message));
 		this.selectedMessage.timestamp=new Date(this.selectedMessage.timestamp);
 		this.$bvModal.show('editModal')  
 	},
-	updateMessage:function(){	
+	updateMessage(){	
 		this.messages= new Set( [...this.messages].map(m=>{
 			if(m._id==this.selectedMessage._id){
-				if(m.speaker.scene!=this.selectedMessage.speaker?.scene){
-					var from = this.getScene(m.speaker?.scene);
-					var to = this.getScene(this.selectedMessage.speaker?.scene);
-					(from.count-=1);
-					(to.count+=1);
-				}
-			return this.selectedMessage;
+				return this.selectedMessage;
 			}else{
 				return m;
 			}
 		}))
-	},deleteMessage:function(){
+	},deleteMessage(){
 		this.$bvModal.hide('editModal')
 		if(this.selectedMessage.speaker?.scene!=null) {
 			this.getScene(this.selectedMessage.speaker.scene).count--;
@@ -314,7 +321,7 @@ export default {
 		this.settings=archive.settings;
 		this.users=archive.users;
 		this.actors=archive.actors;
-		this.scenes=archive.scenes.map(s=>{s.earliest=new Date(s.earliest);return s}).sort((x,y) => x.earliest-y.earliest);
+		this.scenes=archive.scenes;
 		this.messages=new Set(archive.messages.map(m=>{m.timestamp=new Date(m.timestamp);return m}));
 		this.scene=this.scenes.[0]._id;
 	},updateScroll(event){
@@ -332,6 +339,8 @@ export default {
 			if(this.settingsbarShown)	this.settingsbarShown=false;
 			else this.scenebarShown=true;
 		}
+	},applyFilter(filter){
+		this.messages=new Set( [...this.messages].filter(filter))
 	}
 
 	}

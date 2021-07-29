@@ -40,19 +40,37 @@
 						</div>
 					</div>
 				</b-col>
-				<b-col sm="3" v-if="scenes.length>0">
+				<b-col sm="4" v-if="scenes.length>0">
 					<h3>Scenes ({{scenes.length}})</h3>
 					<div class="scroll">
 						<div v-for="(scene,i) in scenes" :key="i+'/'+scene._id" :title="scene._id">{{scene.name}}</div>
 					</div>
 				</b-col>
-				<b-col sm="3" v-if="users.length>0">
+				<b-col sm="4" v-if="users.length>0">
 					<h3>Users ({{users.length}})</h3>
 					<div class="scroll">
 						<div v-for="user in users" :key="user._id" :title="user._id" >
-							<input :style="{color:user.color}" type="" title="Rename User?" v-model="user.name" name="">
+							<b-form-input type="color" v-model="user.color" style="width: 2em; height: 2em; display: inline;"/> <b-form-input :style="{color:user.color, display: 'inline', width: 'calc(100% - 2.5em)'}" type="text" title="Rename User?" v-model="user.name" name=""/>
 						</div>
 					</div>
+				</b-col>
+			</b-row>
+		</b-container>
+		<hr>
+		<b-container fluid>
+			<b-row>
+				<b-col sm="3">
+					<label>Remove Messages:</label>
+				</b-col>
+				<b-col sm="3">
+					<b-form-select v-model="filter" :options="filters" />
+				</b-col>
+				<b-col>
+					<b-form-select v-if="filter==1" v-model="subFilter" :options="subFilters"/>
+					<b-form-input type="datetime-local" v-else-if="filter>1" v-model="subFilter"/>
+				</b-col>
+				<b-col>
+					<b-button @click="applyFilter" :disabled="filter==0 || !subFilter">Apply</b-button>
 				</b-col>
 			</b-row>
 		</b-container>
@@ -119,7 +137,21 @@
 				c:null,	u:null,	a:null,	s:null,	i:null,
 				name:"",
 				setActor:{ name:null,avatar:''},
-				url:""}),
+				url:"",
+				filter:0,
+				filters:[
+					{text:"That are...",value:1},
+					{text:"Before...",value:2},
+					{text:"After...",value:3},
+				],
+				subFilters:[
+					{text:'Misc. Messages',value:((m)=>m.type!=0)},
+					{text:'OOC',value:((m)=>m.type!=1)},
+					{text:'Rolls',value:((m)=>m.type!=5)},
+					{text:'Whispers',value:((m)=>m.whisper.length==0)}
+				],
+				subFilter:false
+				}),
 		watch:{
 			c:function (file) {
 				console.log("Inputted chat. Reading...");
@@ -148,6 +180,13 @@
 			}
 		},
 		methods:{
+			applyFilter:function() {
+				if(this.filter==1) this.$emit('filterMessages',this.subFilter)
+				if(this.filter==2) this.$emit('filterMessages',((m)=>m.timestamp>new Date(this.subFilter)))
+				if(this.filter==3) this.$emit('filterMessages',((m)=>m.timestamp<new Date(this.subFilter)))
+				this.subFilter=false;
+				this.filter=0;
+			},
 			downloadLog:function(){ 
 				var j = JSON.stringify({
 					version:"0.1",
@@ -199,7 +238,7 @@
 	.scroll{
 		overflow-y: scroll;
 		overflow-x: hidden;
-		max-height: 20em;
+		max-height: 18em;
 	}
 	.actor-prev{
 		width: 100%;
